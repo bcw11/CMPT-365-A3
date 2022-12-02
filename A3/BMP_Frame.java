@@ -34,25 +34,11 @@ public class BMP_Frame{
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(width,height);
         frame.setLocationRelativeTo(null);
-        frame.setTitle("CMPT 365 A2");
+        frame.setTitle("CMPT 365 A3");
 
         // new panel 
         panel = new JPanel();
         frame.add(panel);
-
-        // adding keylistener to change images 
-        frame.addKeyListener(new KeyListener() {
-            @Override
-            public void keyPressed(KeyEvent e) {
-                if(bmpPanel != null)
-                    bmpPanel.nextImageSet();
-            }
-            // not used
-            @Override
-            public void keyTyped(KeyEvent e) { }
-            @Override
-            public void keyReleased(KeyEvent e) { }
-        });
 
         // creating menu bar and items 
         menu = new JMenuBar();
