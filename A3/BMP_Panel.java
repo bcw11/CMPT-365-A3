@@ -61,6 +61,16 @@ class BMP_Panel extends JPanel {
         add(L2);
     }
 
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // calculating height and width
+        int iHeight = (height-image.getHeight())/2;
+        int iWidthRight = (width - 2*image.getWidth())/2;
+
+        g.drawImage(image, iWidthRight, iHeight, this);
+    }
+
 
     private int huffmanEncoding(){
         HashMap<String,Integer> map = new HashMap<String,Integer>();
@@ -117,10 +127,9 @@ class BMP_Panel extends JPanel {
     }
 
     private int jpegEncoding(){
-        // holds predicted values 
-        BufferedImage predictedValues = new BufferedImage(image.getWidth(), image.getHeight(), BufferedImage.TYPE_INT_RGB);
 
-        EncodedSymbol[][] encodedSymbols = new EncodedSymbol[image.getWidth()][image.getHeight()];
+        // holds the difference image values
+        PredictedValue[][] differenceImage = new PredictedValue[image.getWidth()][image.getHeight()];
 
         // holds frequency of symbols 
         HashMap<String,Integer> map = new HashMap<String,Integer>();
@@ -129,82 +138,67 @@ class BMP_Panel extends JPanel {
         for (int x = 0; x < image.getWidth(); x++) {
             for (int y = 0; y < image.getHeight(); y++) {
                 Color c = new Color(image.getRGB(x, y));
-                int predictor = 0;
 
                 // very first pixel 
                 if((x-1) == -1 && (y-1) == -1){
                     // setting predictor P0 
-                    predictor = 0;
-
-                    // setting predicted value 
-                    predictedValues.setRGB(x, y, c.getRGB());
-
-                    // setting encoded symbol
-                    encodedSymbols[x][y] = new EncodedSymbol(c.getRed(),c.getGreen(),c.getBlue());
+                    differenceImage[x][y] = new PredictedValue(c.getRed(),c.getGreen(),c.getBlue(),0); 
                 }
                 // pixels in first row 
                 else if((y-1) == -1){
-                    // predictor P1 
-                    predictor = 1;
-
-                    Color P1 = new Color(predictedValues.getRGB(x-1, y));
-                    predictedValues.setRGB(x, y, P1.getRGB());
+                    // setting predictor P1
+                    PredictedValue A = differenceImage[x-1][y];
+                    differenceImage[x][y] = new PredictedValue(c.getRed()-A.red,c.getGreen()-A.green,c.getBlue()-A.blue,1);
                 }
                 // pixels in first column 
                 else if((x-1) == -1){
-                    // predictor P2 
-                    predictor = 2;
-
-                    Color P2 = new Color(predictedValues.getRGB(x, y-1));
-                    predictedValues.setRGB(x, y, P2.getRGB());
+                    // setting predictor P2
+                    PredictedValue B = differenceImage[x][y-1];
+                    differenceImage[x][y] = new PredictedValue(c.getRed()-B.red,c.getGreen()-B.green,c.getBlue()-B.blue,2);
                 }
                 // normal pixels 
                 else{
-                    Color[] P = new Color[7];
+                    PredictedValue[] P = new PredictedValue[7];
                     
-                    // calculating predictors 
-                    P[0] = new Color(predictedValues.getRGB(x-1, y));
-                    P[1] = new Color(predictedValues.getRGB(x, y-1));
-                    P[2] = new Color(predictedValues.getRGB(x-1, y-1));
+                    // A
+                    P[0] = differenceImage[x-1][y];
+                    // B
+                    P[1] = differenceImage[x][y-1];
+                    // C
+                    P[2] = differenceImage[x-1][y-1];
 
-                    P[3] = new Color(P[0].getRed()+P[1].getRed()-P[2].getRed(),
-                                    P[0].getGreen()+P[1].getGreen()-P[2].getGreen(),
-                                    P[0].getBlue()+P[1].getBlue()-P[2].getBlue());
+                    P[3] = new PredictedValue(P[0].red+P[1].red-P[2].red,
+                                        P[0].green+P[1].green-P[2].green,
+                                        P[0].blue+P[1].blue-P[2].blue, 4);
 
-                    P[4] = new Color(P[0].getRed()+(P[1].getRed()-P[2].getRed())/2,
-                                    P[0].getGreen()+(P[1].getGreen()-P[2].getGreen())/2,
-                                    P[0].getBlue()+(P[1].getBlue()-P[2].getBlue())/2);
+                    P[4] = new PredictedValue(P[0].red+(P[1].red-P[2].red)/2,
+                                    P[0].green+(P[1].green-P[2].green)/2,
+                                    P[0].blue+(P[1].blue-P[2].blue)/2, 5);
 
-                    P[5] = new Color(P[1].getRed()+(P[0].getRed()-P[2].getRed())/2,
-                                    P[1].getGreen()+(P[0].getGreen()-P[2].getGreen())/2,
-                                    P[1].getBlue()+(P[0].getBlue()-P[2].getBlue())/2);
+                    P[5] = new PredictedValue(P[1].red+(P[0].red-P[2].red)/2,
+                                    P[1].green+(P[0].green-P[2].green)/2,
+                                    P[1].blue+(P[0].blue-P[2].blue)/2, 6);
 
-                    P[6] = new Color((P[0].getRed()+P[1].getRed())/2,
-                                    (P[0].getGreen()+P[1].getGreen())/2,
-                                    (P[0].getBlue()+P[1].getBlue())/2);
+                    P[6] = new PredictedValue((P[0].red+P[1].red)/2,
+                                    (P[0].green+P[1].green)/2,
+                                    (P[0].blue+P[1].blue)/2, 7);
 
-                    // determining which predictor to use 
-                    int lowest = Math.abs(P[0].getRed());
-                    predictor = 10;
-                    for(int i = 1; i < 7; i++){
-                        if(Math.abs(P[i].getRed()) < lowest){
-                            lowest = Math.abs(P[i].getRed());
-                            predictor = i+10;
+                    int lowest = Math.abs(c.getRed() - P[0].red);
+                    int predictor = 1;
+                    for(int i = 0; i < 7; i++){
+                        if(Math.abs(c.getRed() - P[i].red) < lowest){
+                            lowest = Math.abs(P[i].red);
+                            predictor = i;
                         }
                     }
                     
                     // setting predicted value 
-                    predictedValues.setRGB(x, y, P[10-predictor].getRGB());
+                    differenceImage[x][y] = new PredictedValue(P[predictor].red,P[predictor].green,P[predictor].blue,predictor);
                 }
 
-                // predictor 
-                String p =  Integer.toString(predictor);
-
-                // predictor + rgb symbol 
-                String s = p + " " + Integer.toString(c.getBlue())+Integer.toString(c.getGreen())+Integer.toString(c.getRed());
-                
-
-                System.out.println(s);
+                // key = predictor + rgb symbol 
+                String s = differenceImage[x][y].red +""+ differenceImage[x][y].green +""+ differenceImage[x][y].blue;
+               
 
                 // putting key into dictionary and incrementing if exists
                 if(!map.containsKey(s))
@@ -233,25 +227,23 @@ class BMP_Panel extends JPanel {
         // finding huffman code of symbols
         Map<String, Integer> huffmanCodes = new HashMap<>();  
         codeword(huffmanCodes, tree.peek(), "");  
+        int[] predictorBits = {1,1,2,2,3,3,3,3};
 
         int bits = 0; 
         for (int x = 0; x < image.getWidth(); x++) {
             for (int y = 0; y < image.getHeight(); y++) {
-                Color c = new Color(image.getRGB(x, y));
-
-                // rgb symbol 
-                String s = Integer.toString(c.getBlue())+Integer.toString(c.getGreen())+Integer.toString(c.getRed());
-
-                // getting number of bits in code 
-                bits += huffmanCodes.get(s);
+                
+                // key = predictor + rgb symbol 
+                String s = differenceImage[x][y].red+""+differenceImage[x][y].green+""+differenceImage[x][y].blue;
+                
+                // getting number of bits in code (huffman code + predictor)
+                bits += huffmanCodes.get(s) + predictorBits[differenceImage[x][y].predictor];
             }
         }
    
         return bits;
     }
 
-
-    
 
     // finding huffman codeword length for each symbol
     public void codeword(Map<String, Integer> huffmanCode, Node node, String str)  {  
@@ -286,29 +278,23 @@ class BMP_Panel extends JPanel {
         }  
     }  
 
-    class EncodedSymbol {  
-        int r;
-        int g;
-        int b;
+    class PredictedValue {  
+        int red;
+        int green;
+        int blue;
+        int predictor;
       
-        EncodedSymbol(int r, int g, int b)  {  
-            this.r = r;
-            this.g = g;
-            this.b = b;
+        PredictedValue(int red, int green, int blue,int predictor)  {  
+            this.red = red;
+            this.green = green;
+            this.blue = blue;
+            this.predictor = predictor;
         }  
     }  
 
 
     
 
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
 
-        // calculating height and width
-        int iHeight = (height-image.getHeight())/2;
-        int iWidthRight = (width - 2*image.getWidth())/2;
-
-        g.drawImage(image, iWidthRight, iHeight, this);
-    }
     
 }
